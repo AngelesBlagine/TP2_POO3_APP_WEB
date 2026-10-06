@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wireshark Monitoring Dashboard</title>
+  <meta name="description" content="Dashboard de monitoreo de procesos y red con estética visual Wireshark Dark Mode y Slate Code." />
+  <meta property="og:title" content="Wireshark Monitoring Dashboard" />
+  <meta property="og:description" content="Dashboard de monitoreo de procesos y red con estética visual Wireshark Dark Mode y Slate Code." />
+
+  <!-- Google Fonts: JetBrains Mono & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Hoja de estilos Wireshark Dark Mode / Slate Code -->
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app-container">
+    <!-- =========================================================================
+         1. HEADER / TOP BAR: Espacio reservado para controles y filtros (altura fija 56px)
+        ========================================================================= -->
+    <header class="ws-header">
+      <div class="ws-brand">
+        <div class="ws-brand-icon">WS</div>
+        <div>
+          <div class="ws-brand-title">
+            WIRESHARK MONITOR
+            <span class="ws-brand-badge">SLATE CODE</span>
+          </div>
+          <div class="ws-brand-sub">Process & Network Dissector v3.9</div>
+        </div>
+      </div>
+
+      <div class="ws-filter-container">
+        <div class="ws-input-wrapper">
+          <span class="ws-input-prefix">filter:</span>
+          <input
+            id="filter-input"
+            type="text"
+            class="ws-filter-input"
+            placeholder='e.g. "critical", "telegram", "tcp", "pid: 4128"'
+          />
+          <button id="clear-filter-btn" class="ws-clear-btn" title="Limpiar filtro" style="display: none;">✕</button>
+        </div>
+
+        <div class="ws-preset-group">
+          <button class="ws-preset-btn active" data-preset="all">Todos</button>
+          <button class="ws-preset-btn" data-preset="critical">Críticos</button>
+          <button class="ws-preset-btn" data-preset="telegram">Telegram</button>
+          <button class="ws-preset-btn" data-preset="network">Sockets</button>
+        </div>
+      </div>
+
+      <div class="ws-actions">
+        <button id="capture-toggle-btn" class="ws-btn ws-btn-capture">
+          <span id="capture-indicator">●</span>
+          <span id="capture-text">Capturando</span>
+        </button>
+        <button id="inject-alert-btn" class="ws-btn ws-btn-primary">
+          + Alerta Telegram
+        </button>
+      </div>
+    </header>
+
+    <!-- =========================================================================
+         CUERPO PRINCIPAL: Dividido en 60% alto y 40% alto
+        ========================================================================= -->
+    <main class="ws-main">
+      <!-- 2. PANEL SUPERIOR (60% alto): Tabla de Procesos -->
+      <section class="ws-panel-upper">
+        <div class="ws-panel-header">
+          <div class="ws-panel-title">
+            <span style="color: var(--ws-blue);">■</span>
+            <span>[ TABLA DE PROCESOS ]</span>
+            <span style="color: var(--ws-text-muted); font-weight: normal; font-size: 10px;">
+              // process dissector packet stream
+            </span>
+          </div>
+          <div id="table-meta" class="ws-panel-meta">
+            Mostrando <strong style="color: #fff;">42</strong> de 42 procesos
+          </div>
+        </div>
+
+        <div class="ws-table-container">
+          <table class="ws-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">No.</th>
+                <th style="width: 70px;">PID</th>
+                <th style="width: 90px;">Time</th>
+                <th style="width: 170px;">Proceso / Origen</th>
+                <th style="width: 170px;">Destino / Endpoint</th>
+                <th style="width: 90px;">Protocolo</th>
+                <th style="width: 75px; text-align: right;">CPU %</th>
+                <th style="width: 85px; text-align: right;">Memoria</th>
+                <th style="width: 95px;">Estado</th>
+                <th style="min-width: 320px;">Información de Telemetría & Payload</th>
+              </tr>
+            </thead>
+            <tbody id="process-table-body">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3. PANEL INFERIOR (40% alto): Dividido en 2 columnas -->
+      <section class="ws-panel-lower">
+        <!-- COLUMNA IZQUIERDA: Inspector de Detalles (Tree View) -->
+        <div class="ws-col-left">
+          <div class="ws-panel-header">
+            <div class="ws-panel-title">
+              <span style="color: var(--ws-blue);">▶</span>
+              <span>[ INSPECTOR DE DETALLES ]</span>
+              <span style="color: var(--ws-text-muted); font-weight: normal; font-size: 10px;">// tree view</span>
+            </div>
+            <div id="inspector-meta" style="color: var(--ws-blue); font-size: 11px;">
+              PID 4128 (worker-node-04)
+            </div>
+          </div>
+
+          <div id="tree-container" class="ws-tree-container">
+            <!-- Nodos del Tree View renderizados dinámicamente -->
+          </div>
+        </div>
+
+        <!-- COLUMNA DERECHA: Gráficos de Métricas y Logs de Telegram (Sin canvas) -->
+        <div class="ws-col-right">
+          <div class="ws-panel-header">
+            <div class="ws-panel-title">
+              <span style="color: var(--ws-blue);">■</span>
+              <span>[ GRÁFICOS DE MÉTRICAS Y LOGS DE TELEGRAM ]</span>
+            </div>
+            <div style="color: var(--ws-green); font-size: 11px; display: flex; items-center; gap: 6px;">
+              <span class="ws-pulse"></span>
+              <span>Telegram Webhook Live</span>
+            </div>
+          </div>
+
+          <div class="ws-metrics-container">
+            <!-- Matriz de Carga de CPU (Pure CSS Grid) -->
+            <div class="ws-card">
+              <div class="ws-card-title">
+                <strong>Matriz de Carga por Núcleo (CPU Cores 0-5)</strong>
+                <span>Load Avg: 2.14, 1.88, 1.45</span>
+              </div>
+              <div id="cores-grid" class="ws-cores-grid">
+                <!-- 6 Cores renderizados con CSS Grid -->
+              </div>
+            </div>
+
+            <!-- Distribución de Memoria RAM (Pure Flexbox) -->
+            <div class="ws-card">
+              <div class="ws-card-title">
+                <strong>Distribución de Memoria RAM (16 GB)</strong>
+                <span style="color: var(--ws-green);">9.1 GB Usados (56.8%)</span>
+              </div>
+              <div class="ws-ram-bar">
+                <div style="width: 26%; background-color: var(--ws-red);" title="RSS: 4.2 GB"></div>
+                <div style="width: 18%; background-color: var(--ws-purple);" title="Buffer: 2.9 GB"></div>
+                <div style="width: 13%; background-color: var(--ws-blue);" title="Cache: 2.1 GB"></div>
+                <div style="width: 43%; background-color: var(--ws-bg);" title="Libre: 6.9 GB"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: var(--ws-text-muted);">
+                <span>■ RSS: 4.2G</span>
+                <span>■ Buffer: 2.9G</span>
+                <span>■ Cache: 2.1G</span>
+                <span>■ Libre: 6.9G</span>
+              </div>
+            </div>
+
+            <!-- Stream de Logs de Telegram -->
+            <div class="ws-card" style="flex: 1; display: flex; flex-direction: column;">
+              <div class="ws-card-title" style="border-bottom: 1px solid rgba(62,68,81,0.4); padding-bottom: 4px;">
+                <strong>Stream de Logs Telegram Webhook</strong>
+                <button id="quick-ping-btn" class="ws-btn" style="padding: 2px 6px; font-size: 10px;">
+                  + Simular Ping
+                </button>
+              </div>
+              <div id="telegram-logs-container" class="ws-log-stream">
+                <!-- Logs renderizados dinámicamente -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- =========================================================================
+         4. FOOTER / STATUS BAR: Compacta (Total: 42 | Critical: 1 | Heartbeat: OK)
+        ========================================================================= -->
+    <footer class="ws-footer">
+      <div class="ws-footer-left">
+        <span>Total: <strong id="footer-total" style="color: var(--ws-blue);">42</strong></span>
+        <span class="ws-footer-divider">|</span>
+        <span>Critical: <strong id="footer-critical" style="color: var(--ws-red);">1</strong></span>
+        <span class="ws-footer-divider">|</span>
+        <span style="color: var(--ws-green); display: flex; align-items: center; gap: 5px;">
+          <span class="ws-pulse"></span>
+          Heartbeat: <strong>OK</strong>
+        </span>
+        <span class="ws-footer-divider">|</span>
+        <span id="footer-focus" style="color: var(--ws-text-muted);">
+          Seleccionado: <span style="color: var(--ws-blue);">#8</span> (PID 4128 - worker-node-04)
+        </span>
+      </div>
+
+      <div style="font-size: 10px; color: var(--ws-text-muted);">
+        Wireshark Dark Mode // Slate Code [60% Sup / 40% Inf]
+      </div>
+    </footer>
+  </div>
+
+  <!-- Script de lógica y renderizado nativo sin dependencias externas -->
+  <script>
+    (function () {
+      // 42 entradas iniciales rigurosamente configuradas
+      const initialProcesses = [
+        {
+          no: 1, pid: 1, time: "0.000000", process: "systemd/init", target: "unix:/run/systemd/private", proto: "IPC", cpu: 0.2, mem: "18.4 MB", status: "NORMAL",
+          info: "INIT: multi-user target reached, supervisor loop online",
+          frame: "Frame 1: 184 bytes captured on sys0",
+          state: "TASK_INTERRUPTIBLE (threads: 1, ppid: 0)",
+          cores: "CPU 0-5 (affinity: all cores)",
+          socket: "AF_UNIX (STREAM) -> /run/systemd",
+          ascii: '{"init":"ok","runlevel":5}'
+        },
+        {
+          no: 2, pid: 482, time: "0.001420", process: "systemd-journald", target: "unix:/run/systemd/journal", proto: "IPC", cpu: 1.1, mem: "42.1 MB", status: "NORMAL",
+          info: "syslog: journal rotation verified, zstd compression enabled",
+          frame: "Frame 2: 256 bytes socket message via journal buffer",
+          state: "TASK_RUNNING (threads: 2, ppid: 1)",
+          cores: "CPU 0, 1",
+          socket: "AF_UNIX (DGRAM) -> /dev/log",
+          ascii: "zstd:comp:block_ok:0x41"
+        },
+        {
+          no: 3, pid: 1044, time: "0.012891", process: "nginx-ingress", target: "0.0.0.0:443", proto: "TLSv1.3", cpu: 6.8, mem: "84.6 MB", status: "NORMAL",
+          info: "TLSv1.3 Handshake completed: ECDHE-RSA-AES128-GCM-SHA256 (200 OK)",
+          frame: "Frame 3: 1420 bytes TLS record layer",
+          state: "TASK_RUNNING (threads: 4, ppid: 1)",
+          cores: "CPU 2, 3",
+          socket: "AF_INET (TCP STREAM) 443 -> 52190",
+          ascii: "HTTP/2.0 200 OK..server:nginx"
+        },
+        {
+          no: 4, pid: 2011, time: "0.024105", process: "api-gateway", target: "127.0.0.1:8080", proto: "HTTP/2", cpu: 14.2, mem: "194.2 MB", status: "NORMAL",
+          info: "POST /v1/telemetry/ingest HTTP/2 [STREAM 13] 200 OK in 8.4ms",
+          frame: "Frame 4: 980 bytes HTTP/2 frame HEADERS + DATA",
+          state: "TASK_RUNNING (threads: 16, ppid: 1)",
+          cores: "CPU 1, 2, 3",
+          socket: "AF_INET (TCP) 8080 -> 41208",
+          ascii: '{"status":"ok","samples":48}'
+        },
+        {
+          no: 5, pid: 2190, time: "0.038410", process: "telegram-dispatcher", target: "api.telegram.org:443", proto: "TELEGRAM", cpu: 4.5, mem: "112.0 MB", status: "NORMAL",
+          info: "POST /bot[TOKEN]/sendMessage -> #telemetry-pings [200 OK] 22ms",
+          frame: "Frame 5: 840 bytes HTTPS payload to Telegram API cluster",
+          state: "TASK_RUNNING (threads: 8, ppid: 1)",
+          cores: "CPU 4, 5",
+          socket: "AF_INET (TCP TLS) 39482 -> 443 (149.154.167.220)",
+          bot: "@health_heartbeat_bot",
+          chat: "#telemetry-pings",
+          ascii: '{"ok":true,"result":{"msg_id":901}}'
+        },
+        {
+          no: 6, pid: 3012, time: "0.049102", process: "postgres-pool-writer", target: "127.0.0.1:5432", proto: "DB_POOL", cpu: 28.4, mem: "640.2 MB", status: "WARNING",
+          info: "DB POOL WARN: Connection queue duration 312ms (>200ms threshold)",
+          frame: "Frame 6: 512 bytes PostgreSQL BackendKeyData message",
+          state: "TASK_RUNNING (threads: 12, ppid: 1)",
+          cores: "CPU 0, 1",
+          socket: "AF_INET (TCP) 5432 -> 49104",
+          ascii: "PGSQL:WARN:pool_wait_queue:312ms"
+        },
+        {
+          no: 7, pid: 3105, time: "0.061092", process: "redis-cache-sync", target: "10.0.2.14:6379", proto: "TCP", cpu: 2.1, mem: "58.4 MB", status: "NORMAL",
+          info: "RESP2: MGET session:token:* [14 keys returned] 1.2ms",
+          frame: "Frame 7: 380 bytes Redis serialization protocol",
+          state: "TASK_RUNNING (threads: 4, ppid: 1)",
+          cores: "CPU 3",
+          socket: "AF_INET (TCP) 6379 -> 58210",
+          ascii: "*14\r\n$32\r\ntok_89ab...\r\n"
+        },
+        {
+          no: 8, pid: 4128, time: "0.078420", process: "worker-node-04", target: "k8s-pod:worker-04", proto: "IPC", cpu: 96.4, mem: "1,842.0 MB", status: "CRITICAL",
+          info: "[CRITICAL] Kernel Out-Of-Memory fault: RSS exceeded limit (94.2%), PID targeted for SIGKILL",
+          frame: "Frame 8: 4096 bytes kernel fault report & cgroup memory dump",
+          state: "TASK_UNINTERRUPTIBLE_SLEEP (D) (threads: 32)",
+          cores: "CPU 2 (100% load pinned)",
+          socket: "AF_UNIX (SOCKET) -> /sys/fs/cgroup/memory/worker-04",
+          ascii: "OOM_CRITICAL:rss_exceeded:sigkill_queued"
+        },
+        {
+          no: 9, pid: 4180, time: "0.089012", process: "telegram-dispatcher", target: "api.telegram.org:443", proto: "TELEGRAM", cpu: 5.1, mem: "114.2 MB", status: "WARNING",
+          info: "POST /bot[TOKEN]/sendMessage -> #sre-emergency [200 OK] OOM alert dispatched",
+          frame: "Frame 9: 1120 bytes encrypted Telegram webhook alert",
+          state: "TASK_RUNNING (threads: 8, ppid: 1)",
+          cores: "CPU 4, 5",
+          socket: "AF_INET (TCP TLS) 39484 -> 443 (149.154.167.220)",
+          bot: "@infra_sentry_bot",
+          chat: "#sre-emergency-channel",
+          ascii: '{"chat_id":"-1001928","text":"OOM"}'
+        },
+        {
+          no: 10, pid: 5012, time: "0.104200", process: "coredns", target: "10.96.0.10:53", proto: "DNS", cpu: 0.8, mem: "38.0 MB", status: "NORMAL",
+          info: "Standard query 0x7a1b A api.telegram.org -> 149.154.167.220",
+          frame: "Frame 10: 92 bytes UDP payload DNS resolve query",
+          state: "TASK_RUNNING (threads: 4, ppid: 1)",
+          cores: "CPU 0",
+          socket: "AF_INET (UDP) 53 -> 48920",
+          ascii: "..api.telegram.org....\x00\x01"
+        },
+        {
+          no: 11, pid: 5120, time: "0.119401", process: "ws-broadcaster", target: "0.0.0.0:8443", proto: "WS", cpu: 7.2, mem: "142.8 MB", status: "NORMAL",
+          info: "WebSocket Frame [PING/PONG]: 48 clients broadcast synchronized",
+          frame: "Frame 11: 440 bytes RFC6455 WebSocket Text Frame",
+          state: "TASK_RUNNING (threads: 8, ppid: 1)",
+          cores: "CPU 1, 2",
+          socket: "AF_INET (TCP WS) 8443 -> 55192",
+          ascii: "\x81\xfe\x01\x14{\"type\":\"broadcast\"}"
+        },
+        {
+          no: 12, pid: 5290, time: "0.132049", process: "prometheus-node", target: "0.0.0.0:9100", proto: "HTTP/2", cpu: 1.4, mem: "28.1 MB", status: "NORMAL",
+          info: "GET /metrics [200 OK] 2,840 series scraped in 18.1ms",
+          frame: "Frame 12: 18400 bytes GZIP Prometheus metrics",
+          state: "TASK_RUNNING (threads: 4, ppid: 1)",
+          cores: "CPU 3",
+          socket: "AF_INET (TCP) 9100 -> 49821",
+          ascii: "# HELP node_cpu_seconds_total"
+        }
+      ];
+
+      // Completar exactamente hasta 42 items
+      for (let i = 0; i < 30; i++) {
+        const no = i + 13;
+        const pid = 6000 + i * 27;
+        const isWarn = i === 4 || i === 12;
+        const protoList = ["TCP", "HTTP/2", "TLSv1.3", "IPC", "WS", "DB_POOL"];
+        const proto = protoList[i % protoList.length];
+        const names = ["grpc-worker", "vault-renewer", "envoy-sidecar", "consul-agent", "jaeger-tracer", "otel-collector", "wireguard-wg0"];
+        const name = `${names[i % names.length]}-${(i % 3) + 1}`;
+        const cpu = isWarn ? 46.2 : Number((1.2 + (i * 1.7) % 22).toFixed(1));
+        const mem = `${50 + (i * 28) % 360} MB`;
+
+        initialProcesses.push({
+          no,
+          pid,
+          time: "0." + String(150 + i * 24).padStart(6, '0'),
+          process: name,
+          target: `10.0.${i % 4}.${20 + i}:8080`,
+          proto,
+          cpu,
+          mem,
+          status: isWarn ? "WARNING" : "NORMAL",
+          info: isWarn ? "Socket buffer backlog threshold warning (rx_queue: 81%)" : "Payload stream packet transmission verified [0 lost pkts]",
+          frame: `Frame ${no}: 512 bytes captured on eth0`,
+          state: "TASK_RUNNING (threads: 6, ppid: 1)",
+          cores: `CPU ${i % 6} (affinity: normal)`,
+          socket: `AF_INET (TCP) ${30000 + i * 40} -> 8080`,
+          ascii: `STREAM_DATA_OK_SEG_${no}`
+        });
+      }
+
+      const initialTelegramLogs = [
+        { id: "tg-1", time: "19:42:01", status: "CRITICAL", bot: "@infra_sentry_bot", chat: "#sre-emergency", msg: "🚨 CRITICAL: worker-04 RSS Memory limit exceeded (94.2%). Kernel OOM alert despachada.", code: 200, lat: 38 },
+        { id: "tg-2", time: "19:41:48", status: "WARNING", bot: "@infra_sentry_bot", chat: "#sre-alerts", msg: "⚠️ WARN: Database connection pool exhaustion. 98/100 activas en pg-master.", code: 200, lat: 44 },
+        { id: "tg-3", time: "19:41:15", status: "NORMAL", bot: "@deploy_notifier", chat: "#devops-feed", msg: "ℹ️ NOTICE: Config hot-reload para nginx-ingress completada sin paquetes caídos.", code: 200, lat: 31 },
+        { id: "tg-4", time: "19:40:50", status: "NORMAL", bot: "@health_heartbeat_bot", chat: "#telemetry-pings", msg: "✅ HEARTBEAT: Todos los 18 microservicios reportan estado nominal (RTT: 12ms).", code: 200, lat: 22 }
+      ];
+
+      let cores = [
+        { id: 0, load: 48, temp: 52 },
+        { id: 1, load: 82, temp: 64 },
+        { id: 2, load: 96, temp: 72 }, // Hot core
+        { id: 3, load: 36, temp: 48 },
+        { id: 4, load: 22, temp: 44 },
+        { id: 5, load: 59, temp: 55 }
+      ];
+
+      let processes = [...initialProcesses];
+      let selectedItem = processes[7]; // worker-node-04 (CRITICAL)
+      let activeFilter = '';
+      let isCapturing = true;
+      let telegramLogs = [...initialTelegramLogs];
+
+      const treeState = {
+        frame: true,
+        proc: true,
+        sock: true,
+        hex: true
+      };
+
+      // Elementos DOM
+      const tableBody = document.getElementById('process-table-body');
+      const filterInput = document.getElementById('filter-input');
+      const clearBtn = document.getElementById('clear-filter-btn');
+      const tableMeta = document.getElementById('table-meta');
+      const inspectorMeta = document.getElementById('inspector-meta');
+      const treeContainer = document.getElementById('tree-container');
+      const coresGrid = document.getElementById('cores-grid');
+      const telegramLogsContainer = document.getElementById('telegram-logs-container');
+      const captureToggleBtn = document.getElementById('capture-toggle-btn');
+      const captureIndicator = document.getElementById('capture-indicator');
+      const captureText = document.getElementById('capture-text');
+      const injectAlertBtn = document.getElementById('inject-alert-btn');
+      const quickPingBtn = document.getElementById('quick-ping-btn');
+      const footerTotal = document.getElementById('footer-total');
+      const footerCritical = document.getElementById('footer-critical');
+      const footerFocus = document.getElementById('footer-focus');
+      const presetButtons = document.querySelectorAll('.ws-preset-btn');
+
+      function renderTable() {
+        const query = activeFilter.trim().toLowerCase();
+        const filtered = processes.filter(p => {
+          if (!query) return true;
+          if (query === 'critical') return p.status === 'CRITICAL';
+          if (query === 'telegram') return p.proto === 'TELEGRAM';
+          if (query === 'network') return p.proto === 'TCP' || p.proto === 'TLSv1.3' || p.proto === 'HTTP/2';
+          return (
+            p.process.toLowerCase().includes(query) ||
+            p.target.toLowerCase().includes(query) ||
+            p.proto.toLowerCase().includes(query) ||
+            p.info.toLowerCase().includes(query) ||
+            String(p.pid).includes(query) ||
+            String(p.no).includes(query)
+          );
+        });
+
+        tableMeta.innerHTML = `Mostrando <strong style="color: #fff;">${filtered.length}</strong> de ${processes.length} entradas`;
+
+        let rowsHtml = '';
+        filtered.forEach(p => {
+          const isSel = selectedItem && selectedItem.no === p.no;
+          const isCrit = p.status === 'CRITICAL';
+          const isWarn = p.status === 'WARNING';
+          const isTg = p.proto === 'TELEGRAM';
+
+          let rowClasses = ['ws-row'];
+          if (isSel) rowClasses.push('selected');
+          else if (isCrit) rowClasses.push('critical');
+          else if (isWarn) rowClasses.push('warning');
+          else if (isTg) rowClasses.push('telegram');
+          else rowClasses.push(p.no % 2 === 0 ? 'ws-row-even' : 'ws-row-odd');
+
+          const statusColor = isCrit ? 'var(--ws-red)' : isWarn ? 'var(--ws-yellow)' : 'var(--ws-green)';
+          const cpuColor = p.cpu > 70 ? 'var(--ws-red)' : p.cpu > 30 ? 'var(--ws-yellow)' : 'var(--ws-text)';
+
+          rowsHtml += `
+            <tr class="${rowClasses.join(' ')}" data-no="${p.no}">
+              <td class="tabular-nums" style="color: var(--ws-text-muted);">${p.no}</td>
+              <td class="tabular-nums" style="color: var(--ws-blue); font-weight: 600;">${p.pid}</td>
+              <td class="tabular-nums">${p.time}</td>
+              <td style="color: #fff; font-weight: 500;">${p.process}</td>
+              <td style="color: var(--ws-cyan);">${p.target}</td>
+              <td><span class="badge-proto">${p.proto}</span></td>
+              <td class="tabular-nums" style="text-align: right; font-weight: bold; color: ${cpuColor};">${p.cpu.toFixed(1)}%</td>
+              <td class="tabular-nums" style="text-align: right; color: var(--ws-text);">${p.mem}</td>
+              <td style="font-weight: bold; color: ${statusColor};">${p.status}</td>
+              <td style="color: var(--ws-text); max-width: 400px; overflow: hidden; text-overflow: ellipsis;">${p.info}</td>
+            </tr>
+          `;
+        });
+
+        tableBody.innerHTML = rowsHtml || `<tr><td colspan="10" style="text-align: center; padding: 24px; color: var(--ws-text-muted);">No se encontraron procesos para el filtro especificado.</td></tr>`;
+
+        // Update footer metrics
+        const critCount = processes.filter(p => p.status === 'CRITICAL').length;
+        footerTotal.textContent = processes.length;
+        footerCritical.textContent = critCount;
+        footerCritical.style.color = critCount > 0 ? 'var(--ws-red)' : 'var(--ws-green)';
+        if (selectedItem) {
+          footerFocus.innerHTML = `Seleccionado: <span style="color: var(--ws-blue);">#${selectedItem.no}</span> (PID ${selectedItem.pid} - ${selectedItem.process})`;
+        }
+      }
+
+      function renderTree() {
+        if (!selectedItem) {
+          inspectorMeta.textContent = 'Ningún proceso seleccionado';
+          treeContainer.innerHTML = '<div style="padding: 16px; color: var(--ws-text-muted); text-align: center;">Selecciona una fila para inspeccionar.</div>';
+          return;
+        }
+
+        inspectorMeta.textContent = `PID ${selectedItem.pid} (${selectedItem.process})`;
+
+        treeContainer.innerHTML = `
+          <!-- Nodo 1: Frame -->
+          <div class="ws-tree-node">
+            <button class="ws-tree-header" onclick="window.wsToggle('frame')">
+              <span>${treeState.frame ? '▼' : '▶'} ${selectedItem.frame || 'Frame capture metadata'}</span>
+              <span style="color: var(--ws-text-muted); font-size: 10px;">${selectedItem.time}s</span>
+            </button>
+            ${treeState.frame ? `
+              <div class="ws-tree-content">
+                <div>├─ Frame Arrival Time: ${selectedItem.time}s</div>
+                <div>├─ Encapsulation Layer: Linux cooked-mode veth0 capture</div>
+                <div>└─ Checksum Status: Valid (Good, uncorrupted)</div>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Nodo 2: Contexto SO -->
+          <div class="ws-tree-node">
+            <button class="ws-tree-header" onclick="window.wsToggle('proc')">
+              <span>${treeState.proc ? '▼' : '▶'} Contexto de SO & Proceso (PID: ${selectedItem.pid})</span>
+              <span style="color: var(--ws-green); font-size: 10px;">${selectedItem.status}</span>
+            </button>
+            ${treeState.proc ? `
+              <div class="ws-tree-content">
+                <div>├─ Proceso: <span style="color: #fff; font-weight: bold;">${selectedItem.process}</span></div>
+                <div>├─ Estado Kernel: <span style="color: var(--ws-green);">${selectedItem.state || 'TASK_RUNNING'}</span></div>
+                <div>├─ Afinidad Cores: <span style="color: var(--ws-yellow);">${selectedItem.cores || 'CPU 0-5'}</span> (Carga: ${selectedItem.cpu}%)</div>
+                <div>└─ Memoria Residente (RSS): <span style="color: var(--ws-cyan);">${selectedItem.mem}</span></div>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Nodo 3: Socket -->
+          <div class="ws-tree-node">
+            <button class="ws-tree-header" onclick="window.wsToggle('sock')">
+              <span>${treeState.sock ? '▼' : '▶'} Descriptor de Socket & Red (${selectedItem.proto})</span>
+              <span style="color: var(--ws-cyan); font-size: 10px;">${selectedItem.target}</span>
+            </button>
+            ${treeState.sock ? `
+              <div class="ws-tree-content">
+                <div>├─ Descriptor: ${selectedItem.socket || 'AF_INET (TCP STREAM)'}</div>
+                <div>├─ Endpoint Destino: <span style="color: var(--ws-cyan);">${selectedItem.target}</span></div>
+                ${selectedItem.bot ? `<div>├─ Telegram Bot: <span style="color: var(--ws-blue);">${selectedItem.bot}</span> (Chat: ${selectedItem.chat})</div>` : ''}
+                <div>└─ TCP Window Scale Factor: 8 (65,536 bytes)</div>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Nodo 4: Hex Dump -->
+          <div class="ws-tree-node" style="background-color: #14161a;">
+            <button class="ws-tree-header" onclick="window.wsToggle('hex')">
+              <span style="color: var(--ws-yellow);">${treeState.hex ? '▼' : '▶'} Volcado Hexadecimal & Stream ASCII</span>
+              <span style="color: var(--ws-text-muted); font-size: 10px;">raw bytes</span>
+            </button>
+            ${treeState.hex ? `
+              <div class="ws-tree-content" style="background-color: #14161a; border-top-color: rgba(62,68,81,0.3); font-size: 10.5px;">
+                <div style="display: grid; grid-template-columns: 45px 1fr 120px; gap: 8px; color: var(--ws-text-muted); border-bottom: 1px solid rgba(62,68,81,0.3); padding-bottom: 3px; margin-bottom: 3px;">
+                  <span>Offset</span><span>Hex Bytes</span><span>ASCII</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 45px 1fr 120px; gap: 8px;">
+                  <span style="color: var(--ws-blue);">0000</span>
+                  <span>45 00 00 54 a3 1b 40 00 40 06 b8 12</span>
+                  <span style="color: var(--ws-green);">E..T..@.@...</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 45px 1fr 120px; gap: 8px;">
+                  <span style="color: var(--ws-blue);">0010</span>
+                  <span>7b 22 61 63 74 69 6f 6e 22 3a 22 74</span>
+                  <span style="color: var(--ws-green);">{"action":"t</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 45px 1fr 120px; gap: 8px;">
+                  <span style="color: var(--ws-blue);">0020</span>
+                  <span>72 61 6d 22 2c 22 73 74 61 74 75 73</span>
+                  <span style="color: var(--ws-green);">ram","status</span>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      window.wsToggle = function (node) {
+        treeState[node] = !treeState[node];
+        renderTree();
+      };
+
+      function renderCores() {
+        coresGrid.innerHTML = cores.map(c => {
+          const isHot = c.load > 85;
+          const isWarn = c.load > 60;
+          const fillClass = isHot ? 'hot' : isWarn ? 'warn' : '';
+
+          return `
+            <div class="ws-core-box">
+              <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--ws-text-muted);">
+                <span>C${c.id}</span>
+                <span>${c.temp}°C</span>
+              </div>
+              <div class="ws-meter-track">
+                <div class="ws-meter-fill ${fillClass}" style="width: ${c.load}%;"></div>
+              </div>
+              <div style="font-size: 10px; font-weight: bold; color: #fff;">${c.load}%</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function renderTelegramLogs() {
+        telegramLogsContainer.innerHTML = telegramLogs.map(l => {
+          const isCrit = l.status === 'CRITICAL';
+          const isWarn = l.status === 'WARNING';
+          const cls = isCrit ? 'ws-log-item crit' : isWarn ? 'ws-log-item warn' : 'ws-log-item';
+          const codeColor = isCrit ? 'var(--ws-red)' : isWarn ? 'var(--ws-yellow)' : 'var(--ws-green)';
+
+          return `
+            <div class="${cls}">
+              <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: var(--ws-text-muted); margin-bottom: 2px;">
+                <span>${l.time} | <strong style="color: var(--ws-blue);">${l.bot}</strong> → ${l.chat}</span>
+                <span style="color: ${codeColor}; font-weight: bold;">HTTP ${l.code} (${l.lat}ms)</span>
+              </div>
+              <div style="color: rgba(255,255,255,0.9); line-height: 1.3;">${l.msg}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function injectTelegramAlert() {
+        const time = new Date().toTimeString().split(' ')[0];
+        const newPid = 9200 + Math.floor(Math.random() * 80);
+        const newLog = {
+          id: `tg-${Date.now()}`,
+          time,
+          status: "WARNING",
+          bot: "@security_guard_bot",
+          chat: "#devops-infra-alerts",
+          msg: `⚡ DISPATCH: Latency spike detectado en socket (PID ${newPid}) — Alert enviada a Telegram.`,
+          code: 200,
+          lat: 29
+        };
+
+        const newProc = {
+          no: processes.length + 1,
+          pid: newPid,
+          time: (parseFloat(processes[0]?.time || "0.6") + 0.012).toFixed(6),
+          process: "telegram-dispatcher",
+          target: "api.telegram.org:443",
+          proto: "TELEGRAM",
+          cpu: 5.8,
+          mem: "116.0 MB",
+          status: "WARNING",
+          info: `POST /bot[TOKEN]/sendMessage -> #devops-infra-alerts [200 OK] (Alert ${newLog.id})`,
+          frame: `Frame ${processes.length + 1}: 980 bytes payload to Telegram API`,
+          state: "TASK_RUNNING (threads: 8, ppid: 1)",
+          cores: "CPU 4, 5",
+          socket: "AF_INET (TCP TLS) 39498 -> 443",
+          bot: "@security_guard_bot",
+          chat: "#devops-infra-alerts",
+          ascii: '{"alert":"latency_spike","ok":true}'
+        };
+
+        telegramLogs.unshift(newLog);
+        processes.unshift(newProc);
+        selectedItem = newProc;
+
+        renderTelegramLogs();
+        renderTable();
+        renderTree();
+      }
+
+      // Event Listeners
+      tableBody.addEventListener('click', function (e) {
+        const tr = e.target.closest('tr');
+        if (!tr) return;
+        const no = parseInt(tr.getAttribute('data-no'), 10);
+        const found = processes.find(p => p.no === no);
+        if (found) {
+          selectedItem = found;
+          renderTable();
+          renderTree();
+        }
+      });
+
+      filterInput.addEventListener('input', function (e) {
+        activeFilter = e.target.value;
+        clearBtn.style.display = activeFilter ? 'inline' : 'none';
+        presetButtons.forEach(btn => btn.classList.remove('active'));
+        renderTable();
+      });
+
+      clearBtn.addEventListener('click', function () {
+        activeFilter = '';
+        filterInput.value = '';
+        clearBtn.style.display = 'none';
+        presetButtons.forEach(btn => {
+          if (btn.getAttribute('data-preset') === 'all') btn.classList.add('active');
+          else btn.classList.remove('active');
+        });
+        renderTable();
+      });
+
+      presetButtons.forEach(btn => {
+        btn.addEventListener('click', function () {
+          presetButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const p = btn.getAttribute('data-preset');
+          activeFilter = p === 'all' ? '' : p;
+          filterInput.value = activeFilter;
+          clearBtn.style.display = activeFilter ? 'inline' : 'none';
+          renderTable();
+        });
+      });
+
+      captureToggleBtn.addEventListener('click', function () {
+        isCapturing = !isCapturing;
+        if (isCapturing) {
+          captureToggleBtn.className = 'ws-btn ws-btn-capture';
+          captureIndicator.textContent = '●';
+          captureText.textContent = 'Capturando';
+        } else {
+          captureToggleBtn.className = 'ws-btn ws-btn-capture paused';
+          captureIndicator.textContent = '❚❚';
+          captureText.textContent = 'Pausado';
+        }
+      });
+
+      injectAlertBtn.addEventListener('click', injectTelegramAlert);
+      quickPingBtn.addEventListener('click', injectTelegramAlert);
+
+      // Fluctuation Interval
+      setInterval(function () {
+        if (!isCapturing) return;
+        cores = cores.map(c => {
+          const delta = Math.floor((Math.random() - 0.48) * 8);
+          const load = Math.min(99, Math.max(15, c.load + delta));
+          return { ...c, load, temp: Math.round(44 + load * 0.28) };
+        });
+        renderCores();
+      }, 2200);
+
+      // Render Inicial
+      renderTable();
+      renderTree();
+      renderCores();
+      renderTelegramLogs();
+    })();
+  </script>
+</body>
+</html>

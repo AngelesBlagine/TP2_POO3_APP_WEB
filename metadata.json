@@ -1,0 +1,6 @@
+{
+  "name": "Wireshark Monitoring Dashboard",
+  "description": "Dashboard de monitoreo de procesos y red con estética visual Wireshark Dark Mode y Slate Code.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
